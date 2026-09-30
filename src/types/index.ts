@@ -59,6 +59,12 @@ export interface Video {
   reportsCount?: number;
 }
 
+export interface MessageReplyInfo {
+  id: string;
+  senderName: string;
+  text: string;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -67,6 +73,8 @@ export interface Message {
   timestamp: string;
   isMine: boolean;
   status: 'sent' | 'delivered' | 'read';
+  replyTo?: MessageReplyInfo;
+  deletedForUserIds?: string[];
 }
 
 export interface Conversation {
@@ -80,12 +88,28 @@ export interface Conversation {
   messages: Message[];
   isOnline?: boolean;
   lastSeen?: string;
+  deletedForUserIds?: string[];
+  clearedHistoryAt?: { [userId: string]: number };
 }
+
+export interface FollowRelation {
+  followerId: string;
+  followingId: string;
+}
+
+export interface FollowRequest {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  timestamp: string;
+}
+
+export type FollowStatus = 'none' | 'requested' | 'following' | 'friends';
 
 export interface NotificationItem {
   id: string;
   recipientId?: string;
-  type: 'like' | 'follow' | 'comment' | 'share';
+  type: 'like' | 'follow' | 'follow_request' | 'comment' | 'share';
   actor: {
     id: string;
     username: string;
@@ -96,6 +120,8 @@ export interface NotificationItem {
   timestamp: string;
   isUnread: boolean;
   videoId?: string;
+  requestId?: string;
+  status?: 'pending' | 'accepted' | 'declined';
 }
 
 export interface ReportItem {

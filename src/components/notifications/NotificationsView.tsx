@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { Bell, Heart, UserPlus, MessageCircle, Share2, Check, CheckCheck, RotateCcw } from 'lucide-react';
+import { Bell, Heart, UserPlus, MessageCircle, Share2, Check, CheckCheck, Clock, Users, UserCheck } from 'lucide-react';
 
 export const NotificationsView: React.FC = () => {
   const {
@@ -8,6 +8,8 @@ export const NotificationsView: React.FC = () => {
     markAllNotificationsAsRead,
     markNotificationAsRead,
     navigateToUserProfile,
+    acceptFollowRequest,
+    declineFollowRequest,
   } = useApp();
 
   const getIcon = (type: string) => {
@@ -16,6 +18,8 @@ export const NotificationsView: React.FC = () => {
         return <Heart className="w-3.5 h-3.5 text-[#ff007a] fill-[#ff007a]" />;
       case 'follow':
         return <UserPlus className="w-3.5 h-3.5 text-blue-400" />;
+      case 'follow_request':
+        return <Clock className="w-3.5 h-3.5 text-amber-400" />;
       case 'comment':
         return <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />;
       case 'share':
@@ -121,6 +125,53 @@ export const NotificationsView: React.FC = () => {
                     <span className={item.isUnread ? 'text-neutral-100 font-medium' : 'text-neutral-400'}>
                       {item.targetText}
                     </span>
+
+                    {/* Follow Request Interactive Buttons or Status */}
+                    {item.type === 'follow_request' && (
+                      item.status === 'accepted' || item.targetText?.includes('friends') ? (
+                        <div className="flex items-center gap-1.5 mt-2 py-1 px-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-xs w-fit shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                          <Users className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>You are now friends!</span>
+                        </div>
+                      ) : item.status === 'declined' ? (
+                        <div className="mt-2 text-xs text-neutral-500 font-medium italic">
+                          <span>Request declined</span>
+                        </div>
+                      ) : item.requestId ? (
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              acceptFollowRequest(item.requestId!, true);
+                            }}
+                            className="py-1 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition-colors cursor-pointer"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              acceptFollowRequest(item.requestId!, true);
+                            }}
+                            className="py-1 px-3 rounded-xl bg-[#ff007a] hover:bg-[#e0006c] text-white font-bold text-xs transition-colors cursor-pointer shadow-[0_0_10px_rgba(255,0,122,0.4)]"
+                          >
+                            Follow Back (Friends)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              declineFollowRequest(item.requestId!);
+                            }}
+                            className="py-1 px-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-medium text-xs transition-colors cursor-pointer"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      ) : null
+                    )}
                   </div>
                   <div className="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-2">
                     <span>{item.timestamp}</span>

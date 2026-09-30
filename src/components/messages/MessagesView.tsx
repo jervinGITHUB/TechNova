@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Conversation, User } from '../../types';
+import { Conversation, User, MessageReplyInfo } from '../../types';
 import {
   Search,
   Send,
@@ -8,11 +8,14 @@ import {
   MoreVertical,
   Flag,
   User as UserIcon,
-  Phone,
-  Video as VideoCall,
   ArrowLeft,
   Ban,
-  ArrowRightLeft
+  Trash2,
+  CornerUpLeft,
+  X,
+  MessageSquare,
+  Plus,
+  Lock
 } from 'lucide-react';
 
 export const MessagesView: React.FC = () => {
@@ -22,18 +25,36 @@ export const MessagesView: React.FC = () => {
     conversations,
     activeConversationId,
     openConversation,
+    openConversationWithUser,
     sendMessage,
+    deleteConversation,
+    deleteMessage,
     messagesMobileView,
     setMessagesMobileView,
     navigateToUserProfile,
     openReportModal,
-    quickLoginAs,
+    canMessageUser,
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [inputText, setInputText] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [replyingTo, setReplyingTo] = useState<MessageReplyInfo | null>(null);
+  const [newChatModalOpen, setNewChatModalOpen] = useState(false);
+
+  // Filter conversations specifically for currentUser (each account has their own isolated conversations)
+  const accountConversations = conversations.filter(conv => {
+    if (!currentUser) return false;
+    const isPart = conv.participantIds && conv.participantIds.length > 0
+      ? conv.participantIds.includes(currentUser.id)
+      : conv.participant.id !== currentUser.id;
+    if (!isPart) return false;
+    if (conv.deletedForUserIds && conv.deletedForUserIds.includes(currentUser.id)) {
+      return false;
+    }
+    return true;
+  });
 
   // Determine the other participant in a conversation based on currentUser
   const getParticipant = (conv: Conversation): User => {
@@ -60,11 +81,11 @@ export const MessagesView: React.FC = () => {
   };
 
   const activeConv =
-    conversations.find(c => c.id === activeConversationId) || conversations[0];
+    accountConversations.find(c => c.id === activeConversationId) || (accountConversations.length > 0 ? accountConversations[0] : null);
 
   const activeParticipant = activeConv ? getParticipant(activeConv) : null;
 
-  const filteredConversations = conversations.filter(conv => {
+  const filteredConversations = accountConversations.filter(conv => {
     const p = getParticipant(conv);
     return (
       p.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -76,13 +97,23 @@ export const MessagesView: React.FC = () => {
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || !activeConv) return;
-    sendMessage(activeConv.id, inputText.trim());
+    sendMessage(activeConv.id, inputText.trim(), replyingTo || undefined);
     setInputText('');
+    setReplyingTo(null);
   };
 
   const handleSelectConversation = (convId: string) => {
     openConversation(convId);
     setMessagesMobileView('chat');
+  };
+
+  const handleDeleteConversation = () => {
+    setMenuOpen(false);
+    if (activeConv) {
+      deleteConversation(activeConv.id);
+      setToastMessage('Conversation deleted.');
+      setTimeout(() => setToastMessage(''), 3000);
+    }
   };
 
   return (
@@ -95,10 +126,83 @@ export const MessagesView: React.FC = () => {
         </div>
       )}
 
+      {/* New Chat Modal */}
+      {newChatModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="absolute inset-0" onClick={() => setNewChatModalOpen(false)} />
+          <div className="relative w-full max-w-md bg-[#13131a] border border-neutral-800 rounded-3xl p-5 shadow-2xl z-10 text-left">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+              <h3 className="font-bold text-white font-brand text-base">New Conversation</h3>
+              <button
+                onClick={() => setNewChatModalOpen(false)}
+                className="text-neutral-400 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-neutral-400 mt-2 mb-4">
+              Select a creator to start chatting with:
+            </p>
+            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+              {users
+                .filter(u => u.id !== currentUser?.id)
+                .map(u => {
+                  const allowed = canMessageUser(u.id);
+                  return (
+                    <div
+                      key={u.id}
+                      onClick={() => {
+                        if (!allowed) {
+                          setToastMessage(`🔒 @${u.username} is private. Only friends can exchange messages.`);
+                          setTimeout(() => setToastMessage(''), 3500);
+                          return;
+                        }
+                        setNewChatModalOpen(false);
+                        openConversationWithUser(u.id);
+                      }}
+                      className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                        allowed
+                          ? 'bg-[#181824] hover:bg-[#20202e] border-neutral-800/80 cursor-pointer group'
+                          : 'bg-[#181824]/50 border-neutral-800/40 cursor-not-allowed opacity-75'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={u.avatar}
+                          alt={u.displayName}
+                          className="w-10 h-10 rounded-full object-cover border border-neutral-700"
+                        />
+                        <div className="min-w-0">
+                          <div className="text-xs sm:text-sm font-bold text-white group-hover:text-[#ff007a] transition-colors truncate flex items-center gap-1.5">
+                            <span>{u.displayName}</span>
+                            {u.isPrivate && <Lock className="w-3 h-3 text-amber-400" />}
+                          </div>
+                          <div className="text-[11px] text-neutral-400 truncate">
+                            @{u.username} {u.isPrivate && '· Private'}
+                          </div>
+                        </div>
+                      </div>
+                      {allowed ? (
+                        <span className="text-xs font-bold text-[#ff007a] bg-[#ff007a]/10 px-3 py-1 rounded-xl group-hover:bg-[#ff007a] group-hover:text-white transition-all">
+                          Chat
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-neutral-400 bg-neutral-800/80 px-2.5 py-1 rounded-xl flex items-center gap-1">
+                          <Lock className="w-3 h-3 text-neutral-500" />
+                          <span>Friends Only</span>
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-5 min-h-0">
         {/* ========================================================================= */}
         {/* Left Column (4 cols on desktop): Conversations List                       */}
-        {/* On mobile: Shown when messagesMobileView === 'list', hidden when 'chat'   */}
         {/* ========================================================================= */}
         <div
           className={`${
@@ -107,12 +211,22 @@ export const MessagesView: React.FC = () => {
         >
           <div className="mb-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold font-brand text-white text-left">
-                Messages
-              </h2>
-              <span className="text-xs text-neutral-400 font-medium">
-                {conversations.length} chats
-              </span>
+              <div>
+                <h2 className="text-xl font-bold font-brand text-white text-left">
+                  Messages
+                </h2>
+                <span className="text-xs text-neutral-400 font-medium">
+                  {accountConversations.length} {accountConversations.length === 1 ? 'chat' : 'chats'}
+                </span>
+              </div>
+              <button
+                onClick={() => setNewChatModalOpen(true)}
+                className="py-1.5 px-3 rounded-xl bg-[#ff007a]/15 hover:bg-[#ff007a]/25 text-[#ff007a] border border-[#ff007a]/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Start a new chat"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>New Chat</span>
+              </button>
             </div>
 
             {/* Search Input */}
@@ -141,13 +255,13 @@ export const MessagesView: React.FC = () => {
                 <div
                   key={conv.id}
                   onClick={() => handleSelectConversation(conv.id)}
-                  className={`flex items-center justify-between p-3 rounded-2xl cursor-pointer transition-all ${
+                  className={`group/conv flex items-center justify-between p-3 rounded-2xl cursor-pointer transition-all ${
                     isSelected
                       ? 'bg-[#1e1e2c] border border-[#ff007a]/40 shadow-sm'
                       : 'hover:bg-[#181822]'
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="relative shrink-0">
                       <img
                         src={participant.avatar}
@@ -163,7 +277,7 @@ export const MessagesView: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="min-w-0 text-left">
+                    <div className="min-w-0 text-left flex-1">
                       <div className="text-xs sm:text-sm font-bold text-white truncate">
                         {participant.displayName}
                       </div>
@@ -173,13 +287,13 @@ export const MessagesView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Right side: Timestamp & Unread Badge / Checkmark */}
+                  {/* Right side: Timestamp, Unread Badge, and Delete Conversation */}
                   <div className="flex flex-col items-end shrink-0 ml-2">
                     <div className="text-[10px] text-neutral-500 font-medium">
                       {conv.lastMessageTime}
                     </div>
 
-                    <div className="mt-1 flex items-center gap-1">
+                    <div className="mt-1 flex items-center gap-1.5">
                       {unread > 0 ? (
                         <span className="w-5 h-5 rounded-full bg-[#ff0033] text-white text-[10px] font-bold flex items-center justify-center shadow-[0_0_8px_rgba(255,0,51,0.6)] animate-pulse">
                           {unread}
@@ -187,15 +301,90 @@ export const MessagesView: React.FC = () => {
                       ) : (
                         <CheckCheck className="w-3.5 h-3.5 text-pink-500" />
                       )}
+
+                      {/* Quick delete icon on list item */}
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          deleteConversation(conv.id);
+                        }}
+                        className="p-1 text-neutral-500 hover:text-red-400 rounded-lg hover:bg-neutral-800 transition-colors opacity-0 group-hover/conv:opacity-100"
+                        title="Delete conversation"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 </div>
               );
             })}
 
-            {filteredConversations.length === 0 && (
+            {/* Zero State if no conversations */}
+            {accountConversations.length === 0 && (
+              <div className="py-8 px-2 text-center">
+                <div className="w-12 h-12 rounded-full bg-neutral-900 border border-neutral-800 text-neutral-400 flex items-center justify-center mx-auto mb-3">
+                  <MessageSquare className="w-6 h-6 text-[#ff007a]" />
+                </div>
+                <h3 className="text-xs font-bold text-white">No conversations yet</h3>
+                <p className="text-[11px] text-neutral-400 mt-1 mb-4">
+                  Start a chat with any of these creators:
+                </p>
+                <div className="space-y-1.5 text-left">
+                  {users
+                    .filter(u => u.id !== currentUser?.id)
+                    .map(u => {
+                      const allowed = canMessageUser(u.id);
+                      return (
+                        <div
+                          key={u.id}
+                          onClick={() => {
+                            if (!allowed) {
+                              setToastMessage(`🔒 @${u.username} is private. Only friends can exchange messages.`);
+                              setTimeout(() => setToastMessage(''), 3500);
+                              return;
+                            }
+                            openConversationWithUser(u.id);
+                          }}
+                          className={`flex items-center justify-between p-2.5 rounded-xl border transition-colors ${
+                            allowed
+                              ? 'bg-[#181824] hover:bg-[#20202e] border-neutral-800/80 cursor-pointer'
+                              : 'bg-[#181824]/50 border-neutral-800/40 cursor-not-allowed opacity-75'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <img
+                              src={u.avatar}
+                              alt={u.displayName}
+                              className="w-8 h-8 rounded-full object-cover border border-neutral-700"
+                            />
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                                <span>{u.displayName}</span>
+                                {u.isPrivate && <Lock className="w-3 h-3 text-amber-400" />}
+                              </div>
+                              <div className="text-[10px] text-neutral-400 truncate">@{u.username}</div>
+                            </div>
+                          </div>
+                          {allowed ? (
+                            <span className="text-[10px] font-bold text-[#ff007a] bg-[#ff007a]/15 px-2.5 py-1 rounded-lg">
+                              Message
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-semibold text-neutral-400 bg-neutral-800/80 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                              <Lock className="w-2.5 h-2.5 text-neutral-500" />
+                              <span>Friends</span>
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            {accountConversations.length > 0 && filteredConversations.length === 0 && (
               <div className="text-center py-12 text-neutral-500 text-xs">
-                No conversations found.
+                No matching conversations found.
               </div>
             )}
           </div>
@@ -203,8 +392,6 @@ export const MessagesView: React.FC = () => {
 
         {/* ========================================================================= */}
         {/* Right Column (8 cols on desktop): Active Chat Session                     */}
-        {/* On mobile: Shown when messagesMobileView === 'chat', hidden when 'list'   */}
-        {/* Includes Back Arrow on mobile to return to conversations                  */}
         {/* ========================================================================= */}
         {activeConv && activeParticipant ? (
           <div
@@ -212,10 +399,10 @@ export const MessagesView: React.FC = () => {
               messagesMobileView === 'list' ? 'hidden md:flex' : 'flex'
             } md:col-span-8 bg-[#13131a] rounded-3xl border border-neutral-800 p-4 sm:p-5 flex-col justify-between shadow-xl min-h-0 relative w-full`}
           >
-            {/* Header: Back Arrow (on mobile) + Participant Info + Switch Account & Actions */}
+            {/* Header: Back Arrow (on mobile) + Participant Info + 3 Dots Options */}
             <div className="flex items-center justify-between pb-3 border-b border-neutral-800 shrink-0">
               <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                {/* Mobile Back Arrow: lets user return to conversation list */}
+                {/* Mobile Back Arrow */}
                 <button
                   type="button"
                   onClick={() => setMessagesMobileView('list')}
@@ -257,23 +444,8 @@ export const MessagesView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Action shortcuts */}
+              {/* Action shortcuts: Note call and video call buttons removed as requested! */}
               <div className="flex items-center gap-1.5 sm:gap-2 relative shrink-0">
-                <button
-                  onClick={() => alert(`Calling ${activeParticipant.displayName} in demo mode...`)}
-                  className="p-2 text-neutral-400 hover:text-white rounded-full hover:bg-neutral-800 transition-colors cursor-pointer"
-                  title="Voice Call"
-                >
-                  <Phone className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => alert(`Starting video call with ${activeParticipant.displayName} in demo mode...`)}
-                  className="p-2 text-neutral-400 hover:text-white rounded-full hover:bg-neutral-800 transition-colors cursor-pointer"
-                  title="Video Call"
-                >
-                  <VideoCall className="w-4 h-4" />
-                </button>
-
                 <button
                   onClick={() => setMenuOpen(!menuOpen)}
                   className="p-2 text-neutral-400 hover:text-white rounded-full hover:bg-neutral-800 transition-colors cursor-pointer"
@@ -289,7 +461,7 @@ export const MessagesView: React.FC = () => {
                       className="fixed inset-0 z-30"
                       onClick={() => setMenuOpen(false)}
                     />
-                    <div className="absolute top-10 right-0 w-44 bg-[#181824] border border-neutral-700 rounded-2xl p-1.5 shadow-xl z-40 text-left backdrop-blur-xl animate-fadeIn">
+                    <div className="absolute top-10 right-0 w-48 bg-[#181824] border border-neutral-700 rounded-2xl p-1.5 shadow-xl z-40 text-left backdrop-blur-xl animate-fadeIn">
                       <button
                         onClick={() => {
                           setMenuOpen(false);
@@ -316,7 +488,6 @@ export const MessagesView: React.FC = () => {
                         <Flag className="w-3.5 h-3.5 text-[#ff007a]" />
                         <span>Report User</span>
                       </button>
-                      <div className="h-px bg-neutral-700/60 my-0.5" />
                       <button
                         onClick={() => {
                           setMenuOpen(false);
@@ -329,6 +500,16 @@ export const MessagesView: React.FC = () => {
                         <Ban className="w-3.5 h-3.5 text-red-400" />
                         <span>Block User</span>
                       </button>
+                      
+                      {/* Delete Conversation added directly below "Block User" as requested */}
+                      <div className="h-px bg-neutral-700/60 my-0.5" />
+                      <button
+                        onClick={handleDeleteConversation}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-xl transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                        <span>Delete Conversation</span>
+                      </button>
                     </div>
                   </>
                 )}
@@ -337,59 +518,163 @@ export const MessagesView: React.FC = () => {
 
             {/* Messages Bubbles Stream */}
             <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1 text-left min-h-0">
-              {activeConv.messages.map(msg => {
-                // Dynamically evaluate isMe based on currentUser
-                const isMe = currentUser ? msg.senderId === currentUser.id : msg.isMine;
+              {(() => {
+                const userClearedTimestamp = activeConv.clearedHistoryAt?.[currentUser?.id || ''] || 0;
+                const visibleMessages = activeConv.messages.filter(msg => {
+                  if (userClearedTimestamp > 0) {
+                    const msgTime = typeof msg.id === 'string' && msg.id.startsWith('m_')
+                      ? parseInt(msg.id.replace('m_', ''), 10)
+                      : 0;
+                    if (msgTime > 0 && msgTime <= userClearedTimestamp) {
+                      return false;
+                    }
+                  }
+                  return true;
+                });
 
-                return (
-                  <div
-                    key={msg.id}
-                    className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                  >
-                    {/* Bubble */}
+                if (visibleMessages.length === 0) {
+                  return (
+                    <div className="py-16 text-center text-xs text-neutral-500">
+                      No messages yet. Say hello to {activeParticipant.displayName}!
+                    </div>
+                  );
+                }
+
+                return visibleMessages.map(msg => {
+                  const isMe = currentUser ? msg.senderId === currentUser.id : msg.isMine;
+
+                  return (
                     <div
-                      className={`max-w-[85%] sm:max-w-md px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-medium leading-relaxed shadow-md ${
-                        isMe
-                          ? 'bg-[#ff007a] text-white rounded-br-xs'
-                          : 'bg-[#2a2a38] text-neutral-100 rounded-bl-xs'
-                      }`}
+                      key={msg.id}
+                      className={`flex flex-col group/msg ${isMe ? 'items-end' : 'items-start'}`}
                     >
-                      {msg.text}
-                    </div>
+                      {/* Bubble */}
+                      <div
+                        className={`max-w-[85%] sm:max-w-md px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-medium leading-relaxed shadow-md ${
+                          isMe
+                            ? 'bg-[#ff007a] text-white rounded-br-xs'
+                            : 'bg-[#2a2a38] text-neutral-100 rounded-bl-xs'
+                        }`}
+                      >
+                        {/* Quoted Reply Banner if this message is a reply */}
+                        {msg.replyTo && (
+                          <div
+                            className={`mb-2 px-2.5 py-1.5 rounded-xl text-[11px] leading-tight flex flex-col gap-0.5 ${
+                              isMe
+                                ? 'bg-black/25 text-white/90 border-l-2 border-white'
+                                : 'bg-black/30 text-neutral-200 border-l-2 border-[#ff007a]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1 font-bold text-[10px] opacity-90">
+                              <CornerUpLeft className="w-2.5 h-2.5" />
+                              <span>{msg.replyTo.senderName}</span>
+                            </div>
+                            <p className="truncate opacity-75">{msg.replyTo.text}</p>
+                          </div>
+                        )}
 
-                    {/* Timestamp & Status */}
-                    <div className="flex items-center gap-1 mt-1 px-1">
-                      <span className="text-[10px] text-neutral-500">
-                        {msg.timestamp}
-                      </span>
-                      {isMe && <CheckCheck className="w-3 h-3 text-pink-400" />}
-                    </div>
-                  </div>
-                );
-              })}
+                        <div>{msg.text}</div>
+                      </div>
 
-              {activeConv.messages.length === 0 && (
-                <div className="py-16 text-center text-xs text-neutral-500">
-                  No messages yet. Say hello to {activeParticipant.displayName}!
-                </div>
-              )}
+                      {/* Timestamp, Status & Action Buttons (Reply / Delete on every message) */}
+                      <div
+                        className={`flex items-center gap-2 mt-1 px-1 ${
+                          isMe ? 'flex-row' : 'flex-row'
+                        }`}
+                      >
+                        <span className="text-[10px] text-neutral-500">
+                          {msg.timestamp}
+                        </span>
+                        {isMe && <CheckCheck className="w-3 h-3 text-pink-400" />}
+
+                        {/* Reply and Delete Buttons on every message */}
+                        <div className="flex items-center gap-1 opacity-90 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplyingTo({
+                                id: msg.id,
+                                senderName: isMe ? 'You' : activeParticipant.displayName,
+                                text: msg.text,
+                              });
+                            }}
+                            className="text-[10px] font-semibold text-neutral-400 hover:text-[#ff007a] px-1.5 py-0.5 rounded hover:bg-neutral-800/80 flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Reply to this message"
+                          >
+                            <CornerUpLeft className="w-3 h-3" />
+                            <span>Reply</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => deleteMessage(activeConv.id, msg.id)}
+                            className="text-[10px] font-semibold text-neutral-400 hover:text-red-400 px-1.5 py-0.5 rounded hover:bg-neutral-800/80 flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Delete / unsend message (deletes for both POVs)"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
 
-            {/* Bottom Send Input Bar: "Type your message here..." + pink "Send" button */}
-            <form onSubmit={handleSend} className="pt-3 border-t border-neutral-800 shrink-0">
+            {/* Bottom Send Input Bar */}
+            <form onSubmit={handleSend} className="pt-2 border-t border-neutral-800 shrink-0">
+              {/* Private account friend restriction banner */}
+              {activeParticipant && !canMessageUser(activeParticipant.id) && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-2.5 text-xs text-amber-300 mb-2">
+                  <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>
+                    This account is private. Only friends can exchange messages. Send a follow request and become friends to chat.
+                  </span>
+                </div>
+              )}
+
+              {/* Replying-to Preview Bar */}
+              {replyingTo && (
+                <div className="flex items-center justify-between px-3 py-1.5 mb-2 bg-[#1c1c28] border-l-4 border-[#ff007a] rounded-xl text-xs text-neutral-300 animate-fadeIn">
+                  <div className="flex items-center gap-2 truncate">
+                    <CornerUpLeft className="w-3.5 h-3.5 text-[#ff007a] shrink-0" />
+                    <span className="font-bold text-white shrink-0">
+                      Replying to {replyingTo.senderName}:
+                    </span>
+                    <span className="truncate text-neutral-400">"{replyingTo.text}"</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReplyingTo(null)}
+                    className="p-1 text-neutral-400 hover:text-white rounded hover:bg-neutral-800 ml-2 shrink-0 cursor-pointer"
+                    title="Cancel reply"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
               <div className="flex items-center gap-2 bg-[#181824] rounded-2xl px-4 py-2.5 border border-neutral-700/80 focus-within:border-[#ff007a] transition-all">
                 <input
                   type="text"
-                  placeholder={`Message ${activeParticipant.displayName}...`}
+                  disabled={Boolean(activeParticipant && !canMessageUser(activeParticipant.id))}
+                  placeholder={
+                    activeParticipant && !canMessageUser(activeParticipant.id)
+                      ? 'Messaging restricted to friends only'
+                      : replyingTo
+                      ? `Replying to ${replyingTo.senderName}...`
+                      : `Message ${activeParticipant.displayName}...`
+                  }
                   value={inputText}
                   onChange={e => setInputText(e.target.value)}
-                  className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-neutral-500 outline-none"
+                  className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-neutral-500 outline-none disabled:cursor-not-allowed"
                 />
                 <button
                   type="submit"
-                  disabled={!inputText.trim()}
+                  disabled={!inputText.trim() || Boolean(activeParticipant && !canMessageUser(activeParticipant.id))}
                   className={`p-2 rounded-xl transition-all ${
-                    inputText.trim()
+                    inputText.trim() && (!activeParticipant || canMessageUser(activeParticipant.id))
                       ? 'bg-[#ff007a] text-white hover:bg-[#e0006c] cursor-pointer shadow-[0_0_12px_rgba(255,0,122,0.4)]'
                       : 'text-neutral-600 cursor-not-allowed'
                   }`}
@@ -401,8 +686,16 @@ export const MessagesView: React.FC = () => {
             </form>
           </div>
         ) : (
-          <div className="hidden md:flex md:col-span-8 bg-[#13131a] rounded-3xl border border-neutral-800 p-8 items-center justify-center text-neutral-500 text-sm">
-            Select a conversation to start messaging.
+          <div className="hidden md:flex md:col-span-8 bg-[#13131a] rounded-3xl border border-neutral-800 p-8 flex-col items-center justify-center text-neutral-400 text-sm">
+            <MessageSquare className="w-12 h-12 text-neutral-600 mb-3" />
+            <p className="font-bold text-white">No Conversation Selected</p>
+            <p className="text-xs text-neutral-500 mt-1">Select a conversation or start a new chat with a creator.</p>
+            <button
+              onClick={() => setNewChatModalOpen(true)}
+              className="mt-4 py-2 px-5 rounded-2xl bg-[#ff007a] hover:bg-[#e0006c] text-white font-bold text-xs transition-colors cursor-pointer shadow-[0_0_15px_rgba(255,0,122,0.4)]"
+            >
+              Start a Conversation
+            </button>
           </div>
         )}
       </div>

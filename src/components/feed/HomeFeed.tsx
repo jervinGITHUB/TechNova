@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Video } from '../../types';
+import { ShareVideoModal } from '../modals/ShareVideoModal';
 import {
   Heart,
   MessageCircle,
@@ -36,9 +37,15 @@ const VideoFeedCard: React.FC<VideoFeedCardProps> = ({
     navigateToUserProfile,
     setSearchQuery,
     setActiveTab,
+    recordVideoView,
   } = useApp();
 
   const [isPlaying, setIsPlaying] = useState(true);
+
+  // Automatically count view when video card mounts in home feed
+  useEffect(() => {
+    recordVideoView(video.id);
+  }, [video.id]);
 
   const formatCount = (count: number) => {
     if (count >= 1000000) return (count / 1000000).toFixed(1) + 'M';
@@ -244,16 +251,13 @@ export const HomeFeed: React.FC = () => {
   } = useApp();
 
   const [isMuted, setIsMuted] = useState(false);
-  const [shareToast, setShareToast] = useState(false);
+  const [shareModalVideo, setShareModalVideo] = useState<Video | null>(null);
 
   // Reference to the middle scrollable video container
   const videoFeedRef = useRef<HTMLDivElement>(null);
 
   const handleShare = (video: Video) => {
-    shareVideo(video.id);
-    navigator.clipboard?.writeText(window.location.href);
-    setShareToast(true);
-    setTimeout(() => setShareToast(false), 2500);
+    setShareModalVideo(video);
   };
 
   // If user scrolls anywhere in the home feed area, ensure the video feed scrolls smoothly
@@ -271,13 +275,12 @@ export const HomeFeed: React.FC = () => {
       onWheel={handleContainerWheel}
       className="w-full h-full overflow-hidden flex justify-center items-start gap-8 lg:gap-12 px-4 sm:px-8 py-3 select-none"
     >
-      {/* Toast Notification when video link shared */}
-      {shareToast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#1e1e2c] border border-[#ff007a]/40 text-white text-xs px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 animate-bounce">
-          <Share2 className="w-4 h-4 text-[#ff007a]" />
-          <span>Link copied to clipboard & share notification sent!</span>
-        </div>
-      )}
+      {/* Share Video Modal */}
+      <ShareVideoModal
+        video={shareModalVideo}
+        isOpen={!!shareModalVideo}
+        onClose={() => setShareModalVideo(null)}
+      />
 
       {/* ========================================================================= */}
       {/* MIDDLE: ONLY THIS SCROLLS (Scrollable Videos Feed Container with snap-y)    */}

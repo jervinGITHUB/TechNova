@@ -213,152 +213,40 @@ export const INITIAL_VIDEOS: Video[] = [
   }
 ];
 
-export const INITIAL_CONVERSATIONS: Conversation[] = [
-  {
-    id: 'conv_jervin',
-    participantIds: ['user_andrea', 'user_jervin'],
-    participant: INITIAL_USERS[1], // Jervin Saludo
-    lastMessage: 'pogi ko',
-    lastMessageTime: 'Today, 6:18am',
-    unreadCount: 0,
-    unreadCounts: { user_andrea: 0, user_jervin: 0 },
-    isOnline: true,
-    lastSeen: '6:18am',
-    messages: [
-      {
-        id: 'm1',
-        conversationId: 'conv_jervin',
-        senderId: 'user_jervin',
-        text: 'How are you?',
-        timestamp: 'Today, 8:30pm',
-        isMine: false,
-        status: 'read'
-      },
-      {
-        id: 'm2',
-        conversationId: 'conv_jervin',
-        senderId: 'user_andrea',
-        text: 'Hello!',
-        timestamp: 'Today, 8:30pm',
-        isMine: true,
-        status: 'read'
-      },
-      {
-        id: 'm3',
-        conversationId: 'conv_jervin',
-        senderId: 'user_andrea',
-        text: 'I am fine and how are you?',
-        timestamp: 'Today, 8:30pm',
-        isMine: true,
-        status: 'read'
-      },
-      {
-        id: 'm4',
-        conversationId: 'conv_jervin',
-        senderId: 'user_jervin',
-        text: 'I am doing well <3',
-        timestamp: 'Today, 8:30pm',
-        isMine: false,
-        status: 'read'
-      },
-      {
-        id: 'm5',
-        conversationId: 'conv_jervin',
-        senderId: 'user_andrea',
-        text: 'pogi ko',
-        timestamp: 'Today, 8:30pm',
-        isMine: true,
-        status: 'read'
-      }
-    ]
-  },
-  {
-    id: 'conv_jan',
-    participantIds: ['user_andrea', 'user_jan'],
-    participant: INITIAL_USERS[2], // Jan Ahron
-    lastMessage: 'pautang 5k',
-    lastMessageTime: 'Today, 12:01pm',
-    unreadCount: 0,
-    unreadCounts: { user_andrea: 0, user_jan: 0 },
-    isOnline: false,
-    lastSeen: '12:05pm',
-    messages: [
-      {
-        id: 'm_jan_1',
-        conversationId: 'conv_jan',
-        senderId: 'user_jan',
-        text: 'oy Andrea, free ka ba?',
-        timestamp: 'Today, 11:58am',
-        isMine: false,
-        status: 'read'
-      },
-      {
-        id: 'm_jan_2',
-        conversationId: 'conv_jan',
-        senderId: 'user_jan',
-        text: 'pautang 5k',
-        timestamp: 'Today, 12:01pm',
-        isMine: false,
-        status: 'read'
-      }
-    ]
-  },
-  {
-    id: 'conv_rene',
-    participantIds: ['user_andrea', 'user_rene'],
-    participant: INITIAL_USERS[4], // Rene Butter
-    lastMessage: 'mamaaaa!!',
-    lastMessageTime: 'Yesterday, 9:52pm',
-    unreadCount: 1, // Red 1 indicator as specified in user prompt!
-    unreadCounts: { user_andrea: 1, user_rene: 0 },
-    isOnline: true,
-    lastSeen: 'Just now',
-    messages: [
-      {
-        id: 'm_rene_1',
-        conversationId: 'conv_rene',
-        senderId: 'user_rene',
-        text: 'did you see my new video?',
-        timestamp: 'Yesterday, 9:50pm',
-        isMine: false,
-        status: 'read'
-      },
-      {
-        id: 'm_rene_2',
-        conversationId: 'conv_rene',
-        senderId: 'user_rene',
-        text: 'mamaaaa!!',
-        timestamp: 'Yesterday, 9:52pm',
-        isMine: false,
-        status: 'delivered'
-      }
-    ]
-  },
-  {
-    id: 'conv_adili',
-    participantIds: ['user_andrea', 'user_adili'],
-    participant: INITIAL_USERS[5], // Adili King
-    lastMessage: 'ano na coach!',
-    lastMessageTime: 'Yesterday, 4:29pm',
-    unreadCount: 0,
-    unreadCounts: { user_andrea: 0, user_adili: 0 },
-    isOnline: false,
-    lastSeen: 'Yesterday, 6:00pm',
-    messages: [
-      {
-        id: 'm_adili_1',
-        conversationId: 'conv_adili',
-        senderId: 'user_adili',
-        text: 'ano na coach!',
-        timestamp: 'Yesterday, 4:29pm',
-        isMine: false,
-        status: 'read'
-      }
-    ]
-  }
+export const INITIAL_CONVERSATIONS: Conversation[] = [];
+export const INITIAL_FOLLOWS: { followerId: string; followingId: string }[] = [
+  { followerId: 'user_andrea', followingId: 'user_jervin' },
+  { followerId: 'user_andrea', followingId: 'user_waylay' },
+  { followerId: 'user_jervin', followingId: 'user_andrea' },
+  { followerId: 'user_jervin', followingId: 'user_rene' },
+  { followerId: 'user_jervin', followingId: 'user_waylay' },
+  { followerId: 'user_rene', followingId: 'user_jervin' },
+  { followerId: 'user_waylay', followingId: 'user_jervin' },
+  { followerId: 'user_adili', followingId: 'user_waylay' },
+  { followerId: 'user_adili', followingId: 'user_jervin' },
+  { followerId: 'user_jan', followingId: 'user_waylay' },
+];
+export const INITIAL_FOLLOW_REQUESTS: { id: string; fromUserId: string; toUserId: string; timestamp: string }[] = [
+  { id: 'req_seed_1', fromUserId: 'user_adili', toUserId: 'user_andrea', timestamp: '10m ago' },
 ];
 
 export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: 'notif_req_seed',
+    recipientId: 'user_andrea',
+    type: 'follow_request',
+    actor: {
+      id: 'user_adili',
+      username: 'adili',
+      displayName: 'Adili Barcenas',
+      avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80',
+    },
+    targetText: 'sent you a follow request.',
+    timestamp: '10m ago',
+    isUnread: true,
+    requestId: 'req_seed_1',
+    status: 'pending',
+  },
   {
     id: 'notif_1',
     recipientId: 'user_andrea',
